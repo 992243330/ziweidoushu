@@ -1,15 +1,19 @@
 {
-  "name": "紫微斗数",
-  "short_name": "紫微斗数",
+  "name": "紫微命盘",
+  "short_name": "紫微命盘",
+  "description": "紫微斗数命盘 · 观星象知命理",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#8B0000",
+  "orientation": "portrait",
+  "background_color": "#f6eedf",
+  "theme_color": "#8c6a2f",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/2909/2909606.png",
+      "src": "./assets/icon.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

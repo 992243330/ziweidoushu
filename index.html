@@ -2,7 +2,10 @@
 <html lang="zh-CN">
 <head>
   <link rel="manifest" href="./manifest.json">
-  <meta name="theme-color" content="#8B0000">
+  <link rel="apple-touch-icon" href="./assets/icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="紫微命盘">
+  <meta name="theme-color" content="#8c6a2f">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>紫微命盘</title>
@@ -1159,6 +1162,9 @@ document.getElementById('chatInput').addEventListener('keydown',e=>{
 initDateSelectors();
 setupChartControls();
 initNebula();
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
 </script>
 </body>
 </html>

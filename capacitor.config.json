@@ -1,0 +1,11 @@
+{
+  "appId": "com.ziwei.mingpan",
+  "appName": "紫微命盘",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}
