@@ -442,7 +442,7 @@ async function startChat(){
 async function showAnalysis(){
   if(analysisShown)return;
   analysisShown=true;
-  const loadingDiv=addMessage('assistant','正在解析，施主请稍等<span class="loading"></span>',true);
+  const loadingDiv=addMessage('assistant','正在解析，道友请稍等<span class="loading"></span>',true);
   try{
     const reply=await callDify(buildAnalysisQuery(),{forAnalysis:true});
     chatHistory.push({role:'assistant',content:reply});
@@ -802,8 +802,52 @@ function getDifyUserId(){
   return id;
 }
 
+function getDateContext(){
+  const now=new Date();
+  const y=now.getFullYear();
+  const m=now.getMonth()+1;
+  const d=now.getDate();
+  return {
+    now,
+    currentYear:y,
+    nextYear:y+1,
+    lastYear:y-1,
+    currentDate:`${y}年${m}月${d}日`,
+    currentDateISO:`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+  };
+}
+
+const DATE_CONTEXT_HINT='回答涉及今年、明年、去年、流年、运势时，必须以上述当前日期为准，不要使用2024年或其他过时年份当作“今年”。';
+
+function formatHoroscopeScope(scope, label){
+  if(!scope)return '';
+  const gz=`${scope.heavenlyStem||''}${scope.earthlyBranch||''}`.trim()||'—';
+  const mutagen=Array.isArray(scope.mutagen)&&scope.mutagen.length
+    ? scope.mutagen.map((star,i)=>`${star}化${['禄','权','科','忌'][i]||''}`).join('、')
+    :'—';
+  const stars=Array.isArray(scope.stars)?scope.stars.flat().map(s=>s?.name||s).filter(Boolean):[];
+  return `${label}：${gz}；流年四化 ${mutagen}；流耀 ${stars.length?stars.join('、'):'—'}`;
+}
+
+function buildHoroscopeContext(){
+  const dc=getDateContext();
+  const lines=[
+    `当前日期：${dc.currentDate}`,
+    `今年=${dc.currentYear}年，明年=${dc.nextYear}年，去年=${dc.lastYear}年`
+  ];
+  if(!chartData?.raw?.horoscope)return lines.join('\n');
+  try{
+    const thisYear=chartData.raw.horoscope(new Date(dc.currentYear,6,1));
+    const nextYear=chartData.raw.horoscope(new Date(dc.nextYear,6,1));
+    if(thisYear?.yearly)lines.push(formatHoroscopeScope(thisYear.yearly, `${dc.currentYear}年流年`));
+    if(thisYear?.decadal)lines.push(formatHoroscopeScope(thisYear.decadal, `${dc.currentYear}年大限`));
+    if(nextYear?.yearly)lines.push(formatHoroscopeScope(nextYear.yearly, `${dc.nextYear}年流年`));
+  }catch(e){}
+  return lines.join('\n');
+}
+
 function buildChartContext(){
-  if(!chartData)return '';
+  if(!chartData)return buildHoroscopeContext();
   const stars=chartData.palaces.map(p=>{
     const m=p.main.join('、')||'空';
     const a=p.aux.join('、')||'无';
@@ -815,19 +859,29 @@ function buildChartContext(){
 命主：${chartData.soul||'—'}；身主：${chartData.body||'—'}
 生年四化：${chartData.sihuaStr||'—'}
 十二宫星曜：
-${stars}`;
+${stars}
+
+时间与运限：
+${buildHoroscopeContext()}`;
 }
 
 function buildAnalysisQuery(){
   return `以下是前端已经排好的紫微斗数命盘数据。请直接按照你在 Dify Web App 中配置的默认角色、语气、结构和表达风格，为用户做命盘解析。
 不要使用外部排盘方式，不要改变命盘数据，只基于下面的排盘结果解读。
+${DATE_CONTEXT_HINT}
 
 ${buildChartContext()}`;
 }
 
 function buildFollowUpQuery(question){
-  if(difyConversationId)return question;
+  const dc=getDateContext();
+  if(difyConversationId){
+    return `${question}
+
+（系统提示：当前真实日期为 ${dc.currentDate}，今年=${dc.currentYear}年，明年=${dc.nextYear}年。${DATE_CONTEXT_HINT}）`;
+  }
   return `请按照你在 Dify Web App 中配置的默认角色、语气和表达风格回答用户问题。以下是前端已经排好的命盘数据，请只基于这份命盘继续解读。
+${DATE_CONTEXT_HINT}
 
 ${buildChartContext()}
 
@@ -841,6 +895,7 @@ function buildDifyInputs(forAnalysis){
   const day=birth?String(birth.getDate()):'';
   const hour=chartData?.hourBranch||'';
   const gender=chartData?.gender||userData?.gender||'';
+  const dc=getDateContext();
   return {
     year,
     month,
@@ -852,6 +907,10 @@ function buildDifyInputs(forAnalysis){
     birth_date:birth?`${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}`:'',
     birth_time:hour,
     birth_info: chartData?`${chartData.birthStr}，${gender}，${chartData.lunarStr}，${chartData.juName}`:'',
+    current_year:String(dc.currentYear),
+    current_date:dc.currentDateISO,
+    next_year:String(dc.nextYear),
+    time_context:buildHoroscopeContext(),
     chart_context: buildChartContext(),
     request_type: forAnalysis?'natal_chart_analysis':'follow_up_chat'
   };
@@ -946,6 +1005,10 @@ function buildSystemPrompt(){
   return `你是一位精通紫微斗数的命理大师。用户信息：${chartData.birthStr}，${chartData.gender}，${chartData.lunarStr}，${chartData.juName}。
 命盘如下：
 ${stars}
+
+时间与运限：
+${buildHoroscopeContext()}
+${DATE_CONTEXT_HINT}
 请基于紫微斗数专业理论回答用户问题，语气玄妙而亲切，使用 Markdown 格式，给出具体建议。`;
 }
 
@@ -989,10 +1052,10 @@ function updateDayOptions(keepDay){
 function initDateSelectors(){
   const yearSel=document.getElementById('birthYear');
   const monthSel=document.getElementById('birthMonth');
-  for(let y=1940;y<=2025;y++){
+  for(let y=1940;y<=2026;y++){
     const opt=document.createElement('option');
     opt.value=y;opt.textContent=y+'年';
-    if(y===1996)opt.selected=true;
+    if(y===2026)opt.selected=true;
     yearSel.appendChild(opt);
   }
   for(let m=1;m<=12;m++){
